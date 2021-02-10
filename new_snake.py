@@ -1,17 +1,17 @@
 import pygame, random, sys
+import json
 
-
-class Cube():
+class Cube(object):
 	def __init__(self, pos_x, pos_y):
 		self.rect = pygame.Rect(pos_x, pos_y, 20, 20)
 
 class Snake(Cube):
-	def __init__(self, pos_x, pos_y, food):
-		super().__init__(pos_x, pos_y)
-		self.snake_cubes = [(pos_x, pos_y)]
+	def __init__(self):
+		pos_x = screen_width/2
+		pos_y = screen_height/2
+		self.rect = pygame.Rect(pos_x, pos_y, 20, 20)
+		self.snake_cubes = [Cube(pos_x, pos_y)]
 		self.speed = 0
-		self.food = food
-		self.point = 0
 
 	def move_up(self):
 		self.speed += 4
@@ -54,12 +54,6 @@ class Snake(Cube):
 			self.rect.left = 0
 			self.update()
 
-	def eat(self):
-		if self.rect.colliderect(self.food.rect):
-			self.food.new_food()
-			self.grown()
-			self.point += 1
-
 	def grown(self):
 		self.snake_cubes.append(self.snake_cubes[len(self.snake_cubes)-1])
 
@@ -68,12 +62,13 @@ class Snake(Cube):
 			if index != 0:
 				self.snake_cubes[index] = self.snake_cubes[index - 1]
 			else:
-				self.snake_cubes[index] = (self.rect.x, self.rect.y)
+				self.snake_cubes[index] = Cube(self.rect.x, self.rect.y)
 
 class Food(Cube):
-	def __init__(self,pos_x, pos_y):
-		super().__init__(pos_x, pos_y)
-
+	def __init__(self):
+		food_x = random.randint(0, screen_width/20 -1)*20
+		food_y = random.randint(0, screen_height/20 -1)*20
+		super().__init__(food_x, food_y)
 	def new_food(self):
 		lis_choice_x = range(int(screen_width/20))
 		lis_choice_y = range(int(screen_height/20))
@@ -81,43 +76,24 @@ class Food(Cube):
 		self.rect.y = random.randint(0, screen_height/20 -1)*20
 
 class Button():
-	def __init__(self):
+	def __init__(self, pos_count, button_name):
 		self.position = [(screen_width/2 - 100, 100), (screen_width/2 - 100, 200), (screen_width/2 - 100, 300)]
 		self.pos_count = 0
-
-	def start_button(self, pos_count):
 		x, y = self.position[pos_count]
-		self.button_start = pygame.Rect(x, y, 200, 50)
-		text_start = font.render("Start", True, bg_color)
-		start_rect = text_start.get_rect(center=self.button_start.center)
+		self.rect = pygame.Rect(x, y, 200, 50)
+		self.text = font.render(button_name, True, bg_color)
+		self.text_rect = self.text.get_rect(center=self.rect.center)
 
-		pygame.draw.rect(screen, snake_color, self.button_start)
-		screen.blit(text_start, start_rect)
+	def draw_on_screen(self):
+		pygame.draw.rect(screen, snake_color, self.rect)
+		screen.blit(self.text, self.text_rect)
 
-	def continue_button(self, pos_count):
-		x, y = self.position[pos_count]
-		self.button_continue = pygame.Rect(x, y, 200, 50)
-		text_start = font.render("Continue", True, bg_color)
-		start_rect = text_start.get_rect(center=self.button_continue.center)
-
-		pygame.draw.rect(screen, snake_color, self.button_continue)
-		screen.blit(text_start, start_rect)
-
-
-	def highpoint_button(self, pos_count):
-		x, y = self.position[pos_count]
-		self.button_highpoint = pygame.Rect(x, y, 200, 50)
-		text_start = font.render("High point", True, bg_color)
-		start_rect = text_start.get_rect(center=self.button_highpoint.center)
-
-		pygame.draw.rect(screen, snake_color, self.button_highpoint)
-		screen.blit(text_start, start_rect)
-
-class GameManager():
-	def __init__(self, snake, food):
-		self.snake = snake
-		self.food = food
+class GameManager(object):
+	def __init__(self):
+		self.snake = Snake()
+		self.food = Food()
 		self.direction = False
+		self.point = 0
 
 	def run_game(self):
 		if self.direction == 'down':
@@ -129,53 +105,65 @@ class GameManager():
 		if self.direction == 'left':
 			self.snake.move_left()
 
-		self.snake.eat()
-		i = 0
-		for a, b in self.snake.snake_cubes:
-			rect_i = pygame.Rect(a, b, 20, 20)
-			pygame.draw.rect(screen, snake_color, rect_i)
+		if self.snake.rect.colliderect(self.food.rect):
+			self.food.new_food()
+			self.snake.grown()
+			self.point += 1
+		
+		for i, cube in enumerate(self.snake.snake_cubes):
+			pygame.draw.rect(screen, snake_color, cube)
 			
-			if i > 1:
-				if self.snake.rect.colliderect(rect_i):
-					self.end_game()
-					end_menu()
-			i += 1
+			
+			if self.snake.rect.colliderect(cube) and i > 1:
+				self.end_game()
+				main_menu()
+			
 		pygame.draw.rect(screen, snake_color, self.snake.rect)
 		pygame.draw.rect(screen, food_color, self.food.rect)
-		point = font.render(str(self.snake.point), True, snake_color)
+		point = font.render(str(self.point), True, snake_color)
 		point_rect = point.get_rect(center = (screen_width/2, 20))
 		screen.blit(point, point_rect)
 
+
 	def end_game(self):
+		print(self.point)
+		with open('scores.json', 'r') as read_file:
+			scores = json.load(read_file)
+			scores['highScores'].append(self.point)
+			scores['highScores'].sort(reverse=True)
+		with open('scores.json', 'w') as write_file:
+			json.dump(scores, write_file)
+
 		self.direction = False
-		self.snake.point = 0
+		self.point = 0
+
 	def reset_game(self):
 		self.direction = 'right'
-		self.snake.snake_cubes = [(screen_width/2, screen_height/2)]
+		self.snake.snake_cubes = [Cube(screen_width/2, screen_height/2)]
 		self.snake.rect.x = screen_width/2
 		self.snake.rect.y = screen_height/2
 		self.snake.point = 0
 
 def main_menu():
 	click = False
-	main_button = Button()
+	start_button = Button(0, 'Start')
+	high_score_button = Button(1, 'High score')
 	while True:
 
 		mx, my = pygame.mouse.get_pos()
 
 		screen.fill(bg_color)
-		main_button.start_button(0)
-		main_button.highpoint_button(1)
+		start_button.draw_on_screen()
+		high_score_button.draw_on_screen()
 
-
-		if main_button.button_start.collidepoint((mx, my)):
+		if start_button.rect.collidepoint((mx, my)):
 			if click:
-				game_manager.direction = 'right'
+				game_manager.reset_game()
 				game()
 
-		if main_button.button_highpoint.collidepoint((mx, my)):
+		if high_score_button.rect.collidepoint((mx, my)):
 			if click:
-				hightpoint()
+				high_score()
 
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
@@ -189,7 +177,9 @@ def main_menu():
 		clock.tick(30)
 
 def pause_menu():
-	pause_button = Button()
+	start_button = Button(0, 'Start')
+	continue_button = Button(1, 'Continue')
+	high_score_button = Button(2, 'High score')
 	click = False
 	while True:
 
@@ -197,22 +187,22 @@ def pause_menu():
 
 		screen.fill(bg_color)
 
-		pause_button.start_button(0)
-		pause_button.continue_button(1)
-		pause_button.highpoint_button(2)
+		start_button.draw_on_screen()
+		continue_button.draw_on_screen()
+		high_score_button.draw_on_screen()
 
-		if pause_button.button_continue.collidepoint((mx, my)):
+		if continue_button.rect.collidepoint((mx, my)):
 			if click:
 				game()
 
-		if pause_button.button_start.collidepoint((mx, my)):
+		if start_button.rect.collidepoint((mx, my)):
 			if click:
 				game_manager.reset_game()
 				game()
 
-		if pause_button.button_highpoint.collidepoint((mx, my)):
+		if high_score_button.rect.collidepoint((mx, my)):
 			if click:
-				hightpoint()
+				high_score()
 
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
@@ -224,39 +214,6 @@ def pause_menu():
 
 		pygame.display.flip()
 		clock.tick(30)
-
-def end_menu():
-	click = False
-	end_button = Button()
-	while True:
-
-		mx, my = pygame.mouse.get_pos()
-
-		screen.fill(bg_color)
-
-		end_button.start_button(0)
-		end_button.highpoint_button(1)
-
-		if end_button.button_start.collidepoint((mx, my)):
-			if click:
-				game_manager.reset_game()
-				game()
-
-		if end_button.button_highpoint.collidepoint((mx, my)):
-			if click:
-				hightpoint()
-
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				pygame.quit()
-				sys.exit()
-			if event.type == pygame.MOUSEBUTTONDOWN:
-				if event.button == 1:
-					click = True
-
-		pygame.display.flip()
-		clock.tick(30)
-	pass
 
 def game():
 	while True:
@@ -286,8 +243,32 @@ def game():
 		pygame.display.flip()
 		clock.tick(30)
 
-def hightpoint():
-	pass
+def high_score():
+	with open("scores.json", "r") as read_file:
+		scores = json.load(read_file)
+	while True:
+		screen.fill(bg_color)
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+				sys.exit()
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_ESCAPE:
+					pause_menu()
+		
+		text = font.render("High score", True, snake_color)
+		text_rect = text.get_rect(center=(screen_width/2, 40))
+		screen.blit(text, text_rect)
+
+		for index, score in enumerate(scores["highScores"]):
+			text = font.render(str(score), True, snake_color)
+			text_rect = text.get_rect(center=(screen_width/2, 100 + 60*index))
+			screen.blit(text, text_rect)
+			if index > 5:
+				break
+
+		pygame.display.flip()
+		clock.tick(30)
 
 # General set_up
 pygame.init()
@@ -300,20 +281,12 @@ screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption('Snake')
 
 # some color and font
-snake_color = (200, 200, 200)
+snake_color = (220, 220, 220)
 food_color = (200, 0, 0)
 bg_color = pygame.Color('Grey12')
 font = pygame.font.Font('freesansbold.ttf', 24)
 
-# first food position
-food_x = random.randint(0, screen_width/20 -1)*20
-food_y = random.randint(0, screen_height/20 -1)*20
-food = Food(food_x, food_y)
-
-snake = Snake(screen_width/2, screen_height/2, food)
-
-
-game_manager = GameManager(snake, food)
+game_manager = GameManager()
 
 # Enter the game memu
 main_menu()
